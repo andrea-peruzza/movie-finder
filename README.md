@@ -1,113 +1,113 @@
-# Letterboxd & JustWatch Italia 🎬📡
-> Trova velocemente tra i film della tua watchlist di Letterboxd quelli disponibili alla **visione immediata in streaming in Italia** (sui tuoi abbonamenti o gratis).
+# Movie Finder
+> Quickly find which movies from your Letterboxd watchlist are available for **immediate streaming in Italy** (on your subscription services or for free).
 
 ---
 
-## Caratteristiche Principali
+## Main Features
 
-- **Integrazione Letterboxd & Gestione CSV Incrementale**:
-  - **Importazione 1-Click via file `watchlist.csv`**: esportato da Letterboxd (*Settings > Import & Export > Export Your Data*).
-  - **Unione e Deduplicazione Automatica**: ogni nuovo file CSV importato viene automaticamente unito al file `watchlist.csv` presente nella cartella. Se ci sono più righe dello stesso film uscito nello stesso anno, viene mantenuta **una sola riga**.
-  - **Scansione Intelligente Selettiva**: la ricerca JustWatch viene avviata **esclusivamente per i film non presenti nella precedente importazione**, preservando i risultati e le offerte già verificate per tutti gli altri.
-  - **Importazione via Username Letterboxd**: inserisci il tuo username per scaricare e unire automaticamente la tua watchlist pubblica.
-  - **Aggiunta manuale rapida**: aggiungi al volo qualsiasi film per verificarne subito la disponibilità e registrarlo nel CSV.
-- **Disponibilità JustWatch Italia**:
-  - Interroga in tempo reale le offerte per l'Italia (`country: IT`).
-  - Trova i link diretti per avviare la riproduzione del film sulle piattaforme.
-  - Recupera locandine ad alta definizione, voto IMDb, anno di uscita e generi.
-- **Supporto Piattaforme Italiane & Internazionali**:
-  - **Gratuite in Italia (senza abbonamento)**: Rai Play, Mediaset Infinity, Pluto TV, Serially, Plex, Arte, Rakuten TV Free, ecc.
-  - **Abbonamenti Principali**: Netflix, Amazon Prime Video, Disney+, Now TV / NOW, Timvision, Apple TV+, Paramount+, Infinity+, **HBO Max**.
-  - **Cinema d'Autore & Canali Specializzati**: MUBI, Nexo Plus, MYmovies One, Discovery+, Crunchyroll, Lionsgate+, Sky Go, ecc.
-- **Filtri Intelligenti**:
-  - **Disponibili Subito**: mostra solo i film che puoi guardare adesso senza costi aggiuntivi (inclusi nei tuoi abbonamenti o gratis).
-  - **Solo Gratis**: isola immediatamente i film fruibili gratuitamente (es. RaiPlay, Mediaset Infinity, Pluto TV).
-  - **Tutti i Film**: include anche film al momento solo a noleggio/acquisto o non ancora in streaming.
-  - **Non Disponibili**: per vedere cosa manca all'appello.
-  - **Ricerca in tempo reale**: filtra istantaneamente per titolo.
-  - **Filtro per Genere**: commedia, drammatico, animazione, thriller, ecc.
-- **Ordinamento Flessibile**:
-  - **Ordine di aggiunta nella Watchlist** (dal più recente o dal primo aggiunto).
-  - **Anno di rilascio del film** (più recente / più vecchio).
-  - **Voto IMDb** (dal migliore al peggiore).
-  - **Titolo alfabetico** (A-Z).
-- **Gestione Abbonamenti Persistente**:
-  - Seleziona facilmente le piattaforme a cui sei abbonato tramite un comodo pannello con loghi. Le tue preferenze restano salvate!
-- **Database Locale & Cache SQLite**:
-  - Salva i dati localmente in `data/letterboxd_watch.db`. Le consultazioni successive sono **istantanee** (0 millisecondi) senza rieseguire chiamate di rete, con possibilità di sincronizzare/aggiornare in ogni momento con il pulsante "Sincronizza".
-- **Interfaccia Web Moderna & Modalità CLI**:
-  - Web UI elegante in Dark Mode, ottimizzata per desktop e mobile.
-  - Script CLI per generare report o interrogazioni direttamente dal terminale.
+- **Letterboxd Integration & Incremental CSV Management**:
+  - **1-Click Import via `watchlist.csv` file**: exported from Letterboxd (*Settings > Import & Export > Export Your Data*).
+  - **Automatic Merge and Deduplication**: each newly imported CSV file is automatically merged with the `watchlist.csv` file present in the folder. If there are multiple rows for the same movie released in the same year, only **one row** is kept.
+  - **Smart Selective Scan**: the JustWatch search is launched **exclusively for movies not present in the previous import**, preserving the results and offers already verified for all the others.
+  - **Import via Letterboxd Username**: enter your username to automatically download and merge your public watchlist.
+  - **Quick manual addition**: add any movie on the fly to immediately check its availability and record it in the CSV.
+- **JustWatch Italy Availability**:
+  - Queries real-time offers for Italy (`country: IT`).
+  - Finds direct links to start playing the movie on the platforms.
+  - Retrieves high-definition posters, IMDb rating, release year, and genres.
+- **Support for Italian & International Platforms**:
+  - **Free in Italy (no subscription)**: Rai Play, Mediaset Infinity, Pluto TV, Serially, Plex, Arte, Rakuten TV Free, etc.
+  - **Main Subscriptions**: Netflix, Amazon Prime Video, Disney+, Now TV / NOW, Timvision, Apple TV+, Paramount+, Infinity+, **HBO Max**.
+  - **Art-house Cinema & Specialized Channels**: MUBI, Nexo Plus, MYmovies One, Discovery+, Crunchyroll, Lionsgate+, Sky Go, etc.
+- **Smart Filters**:
+  - **Available Now**: shows only movies you can watch right now at no extra cost (included in your subscriptions or free).
+  - **Free Only**: instantly isolates movies available for free (e.g., RaiPlay, Mediaset Infinity, Pluto TV).
+  - **All Movies**: also includes movies currently only available for rent/purchase or not yet streaming.
+  - **Not Available**: to see what is missing.
+  - **Real-time search**: instantly filters by title.
+  - **Genre Filter**: comedy, drama, animation, thriller, etc.
+- **Flexible Sorting**:
+  - **Order of addition to the Watchlist** (from newest or oldest added).
+  - **Movie release year** (newest / oldest).
+  - **IMDb Rating** (best to worst).
+  - **Alphabetical title** (A-Z).
+- **Persistent Subscriptions Management**:
+  - Easily select the platforms you are subscribed to via a convenient panel with logos. Your preferences are saved!
+- **Local Database & SQLite Cache**:
+  - Saves data locally in `data/letterboxd_watch.db`. Subsequent queries are **instantaneous** (0 milliseconds) without re-running network calls, with the ability to synchronize/update at any time using the "Sync" button.
+- **Modern Web Interface & CLI Mode**:
+  - Elegant Web UI in Dark Mode, optimized for desktop and mobile.
+  - CLI scripts to generate reports or queries directly from the terminal.
 
 ---
 
-## Avvio Rapido
+## Quick Start
 
-L'ambiente virtuale (`.venv`) è già stato creato nella cartella del progetto con tutte le dipendenze installate.
+The virtual environment (`.venv`) has already been created in the project folder with all dependencies installed.
 
-### 1. Avviare l'Applicazione Web
-Dalla cartella del progetto esegui:
+### 1. Start the Web Application
+From the project folder, run:
 
 ```powershell
 .\.venv\Scripts\python.exe run.py
 ```
 
-L'applicazione aprirà automaticamente il tuo browser all'indirizzo:
+The application will automatically open your browser at:
 **http://127.0.0.1:8000**
 
 ---
 
-### 2. Utilizzo da Terminale (CLI)
+### 2. Terminal Usage (CLI)
 
-Se preferisci usare il terminale per consultare o esportare i film, è disponibile lo script `cli.py`:
+If you prefer to use the terminal to consult or export movies, the `cli.py` script is available:
 
 ```powershell
-# Esegui scansione dal file CSV della watchlist
+# Run scan from the watchlist CSV file
 .\.venv\Scripts\python.exe cli.py --csv sample_watchlist.csv
 
-# Specifica i tuoi abbonamenti e ordina per anno di rilascio
+# Specify your subscriptions and sort by release year
 .\.venv\Scripts\python.exe cli.py --csv sample_watchlist.csv --platforms "Netflix,Amazon Prime Video,Rai Play" --sort release_year
 
-# Mostra solo i film gratuiti
+# Show only free movies
 .\.venv\Scripts\python.exe cli.py --filter free --no-scan
 
-# Mostra tutti i film ordinati per data di aggiunta
+# Show all movies sorted by date added
 .\.venv\Scripts\python.exe cli.py --filter all --no-scan
 ```
 
 ---
 
-## Struttura del Progetto
+## Project Structure
 
 ```text
 ├── app/
-│   ├── config.py             # Configurazione e metadata piattaforme italiane e internazionali
-│   ├── database.py           # Gestione database SQLite e query con filtri e ordinamento
-│   ├── main.py               # Applicazione FastAPI e lifespan
+│   ├── config.py             # Configuration and metadata for Italian and international platforms
+│   ├── database.py           # SQLite database management and queries with filters and sorting
+│   ├── main.py               # FastAPI application and lifespan
 │   ├── routers/
-│   │   ├── api.py            # Endpoints REST (import CSV/username, filtri, scan, platforms)
-│   │   └── views.py          # Render della pagina HTML
+│   │   ├── api.py            # REST Endpoints (CSV/username import, filters, scan, platforms)
+│   │   └── views.py          # HTML page rendering
 │   ├── services/
-│   │   ├── justwatch.py      # Client JustWatch GraphQL per disponibilità streaming in Italia
-│   │   ├── letterboxd.py     # Parser CSV Letterboxd e scraper watchlist pubblica
-│   │   └── scanner.py        # Servizio di scansione asincrona con barra di avanzamento
+│   │   ├── justwatch.py      # JustWatch GraphQL client for streaming availability in Italy
+│   │   ├── letterboxd.py     # Letterboxd CSV parser and public watchlist scraper
+│   │   └── scanner.py        # Asynchronous scanning service with progress bar
 │   ├── static/
-│   │   ├── css/styles.css    # Stili CSS responsive e Dark Theme curato
-│   │   └── js/app.js         # Logica interattiva frontend
+│   │   ├── css/styles.css    # Responsive CSS styles and curated Dark Theme
+│   │   └── js/app.js         # Interactive frontend logic
 │   └── templates/
-│       └── index.html        # Template interfaccia utente
+│       └── index.html        # User interface template
 ├── data/
-│   └── letterboxd_watch.db   # Database SQLite locale con cache film e preferenze
-├── run.py                    # Script di avvio del server Web
-├── cli.py                    # Interfaccia da linea di comando (CLI)
-├── sample_watchlist.csv      # File CSV di esempio per test rapidi
-└── requirements.txt          # Dipendenze Python
+│   └── letterboxd_watch.db   # Local SQLite database with movie cache and preferences
+├── run.py                    # Web server startup script
+├── cli.py                    # Command Line Interface (CLI)
+├── sample_watchlist.csv      # Sample CSV file for quick testing
+└── requirements.txt          # Python dependencies
 ```
 
 ---
 
-## Come ottenere il file CSV da Letterboxd
-1. Accedi a [Letterboxd.com](https://letterboxd.com).
-2. Vai su **Settings** > **Import & Export** (oppure direttamente su `https://letterboxd.com/settings/data/`).
-3. Clicca su **"Export Your Data"**: verrà scaricato un file ZIP contenente i tuoi dati.
-4. All'interno dello ZIP troverai il file `watchlist.csv`: trascinalo direttamente nella finestra dell'applicazione web!
+## How to get the CSV file from Letterboxd
+1. Log in to [Letterboxd.com](https://letterboxd.com).
+2. Go to **Settings** > **Import & Export** (or directly to `https://letterboxd.com/settings/data/`).
+3. Click on **"Export Your Data"**: a ZIP file containing your data will be downloaded.
+4. Inside the ZIP you will find the `watchlist.csv` file: drag it directly into the web application window!
