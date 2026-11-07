@@ -1,3 +1,7 @@
+import os
+import io
+import csv
+from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks
 from typing import List, Optional
 from pydantic import BaseModel
@@ -8,7 +12,11 @@ from app.database import (
     get_stats, clear_all_movies, get_connection
 )
 from app.config import KNOWN_PROVIDERS
-from app.services.letterboxd import parse_letterboxd_csv, scrape_letterboxd_user_watchlist
+from app.services.letterboxd import (
+    parse_letterboxd_csv,
+    scrape_letterboxd_user_watchlist,
+    merge_and_save_master_csv
+)
 from app.services.scanner import scanner_instance
 
 router = APIRouter(prefix="/api")
@@ -27,7 +35,7 @@ class UsernameImportRequest(BaseModel):
 def get_platforms():
     active = get_setting("active_platforms", [
         "Netflix", "Amazon Prime Video", "Rai Play", "Mediaset Infinity",
-        "Disney Plus", "Now TV", "Timvision", "Pluto TV"
+        "Disney Plus", "Now TV", "Timvision", "HBO Max", "Pluto TV"
     ])
     active_set = {p.lower() for p in active}
     
@@ -80,30 +88,53 @@ async def import_csv(
     try:
         content = await file.read()
         csv_text = content.decode("utf-8-sig", errors="replace")
-        parsed_movies = parse_letterboxd_csv(csv_text)
         
-        if not parsed_movies:
-            raise HTTPException(status_code=400, detail="Nessun film valido trovato nel file CSV. Assicurati che sia il file 'watchlist.csv' esportato da Letterboxd.")
+        target_csv_path, truly_new_movies, combined_movies, duplicate_count = merge_and_save_master_csv(csv_text)
+        
+        if not combined_movies:
+            raise HTTPException(
+                status_code=400,
+                detail="Nessun film valido trovato nel file CSV. Assicurati che sia il file 'watchlist.csv' esportato da Letterboxd."
+            )
             
-        added_count = 0
-        for m in parsed_movies:
-            add_or_update_movie(
+        newly_pending_count = 0
+        already_present_count = 0
+        
+        for m in combined_movies:
+            _, is_new = add_or_update_movie(
                 letterboxd_slug=m["letterboxd_slug"],
                 title=m["title"],
                 release_year=m["release_year"],
                 letterboxd_uri=m["letterboxd_uri"],
                 date_added=m["date_added"]
             )
-            added_count += 1
-            
-        if auto_scan and not scanner_instance.is_scanning:
+            if is_new:
+                newly_pending_count += 1
+            else:
+                already_present_count += 1
+                
+        # Start JustWatch scan ONLY for films not present in the previous import
+        if newly_pending_count > 0 and auto_scan and not scanner_instance.is_scanning:
             background_tasks.add_task(scanner_instance.scan_all_pending)
+            
+        csv_filename = os.path.basename(target_csv_path)
+        if newly_pending_count > 0:
+            msg = f"Watchlist aggiornata in '{csv_filename}': {newly_pending_count} nuovi film aggiunti e in scansione JustWatch ({already_present_count} film già verificati mantenuti)."
+        else:
+            msg = f"Nessun nuovo film da scansionare: tutti i {already_present_count} film sono già presenti in '{csv_filename}'."
+            
+        if duplicate_count > 0:
+            msg += f" {duplicate_count} righe duplicate dello stesso film/anno escluse."
             
         return {
             "status": "success",
-            "message": f"Importati con successo {added_count} film dalla watchlist Letterboxd!",
-            "count": added_count,
-            "auto_scan": auto_scan
+            "message": msg,
+            "target_csv": csv_filename,
+            "total_count": len(combined_movies),
+            "new_count": newly_pending_count,
+            "already_present_count": already_present_count,
+            "duplicates_omitted": duplicate_count,
+            "auto_scan": auto_scan and newly_pending_count > 0
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Errore durante l'importazione: {str(e)}")
@@ -119,7 +150,6 @@ async def import_username(
         raise HTTPException(status_code=400, detail="Username Letterboxd non valido.")
         
     try:
-        # Run scraper in executor or synchronous thread
         movies = scrape_letterboxd_user_watchlist(username, max_pages=15)
         if not movies:
             return {
@@ -128,25 +158,40 @@ async def import_username(
                 "count": 0
             }
             
-        added_count = 0
+        csv_buffer = io.StringIO()
+        writer = csv.DictWriter(csv_buffer, fieldnames=["Date", "Name", "Year", "Letterboxd URI"])
+        writer.writeheader()
         for m in movies:
-            add_or_update_movie(
+            writer.writerow({
+                "Date": m.get("date_added") or "",
+                "Name": m.get("title") or "",
+                "Year": m.get("release_year") or "",
+                "Letterboxd URI": m.get("letterboxd_uri") or ""
+            })
+            
+        target_csv_path, truly_new, combined, duplicate_count = merge_and_save_master_csv(csv_buffer.getvalue())
+        
+        newly_pending = 0
+        for m in combined:
+            _, is_new = add_or_update_movie(
                 letterboxd_slug=m["letterboxd_slug"],
                 title=m["title"],
                 release_year=m["release_year"],
                 letterboxd_uri=m["letterboxd_uri"],
                 date_added=m["date_added"]
             )
-            added_count += 1
-            
-        if auto_scan and not scanner_instance.is_scanning:
+            if is_new:
+                newly_pending += 1
+                
+        if newly_pending > 0 and auto_scan and not scanner_instance.is_scanning:
             background_tasks.add_task(scanner_instance.scan_all_pending)
             
+        csv_filename = os.path.basename(target_csv_path)
         return {
             "status": "success",
-            "message": f"Trovati e aggiunti {added_count} film dalla watchlist di @{username}!",
-            "count": added_count,
-            "auto_scan": auto_scan
+            "message": f"Watchlist di @{username} integrata in '{csv_filename}': {newly_pending} nuovi film aggiunti e in scansione JustWatch.",
+            "count": len(combined),
+            "new_count": newly_pending
         }
     except PermissionError as pe:
         raise HTTPException(status_code=403, detail=str(pe))
@@ -164,17 +209,35 @@ async def add_single_movie(
         raise HTTPException(status_code=400, detail="Il titolo del film è obbligatorio.")
         
     slug = f"{title.lower()}-{payload.year or ''}".strip("-")
-    mid = add_or_update_movie(
+    
+    # Append to master CSV file
+    csv_buffer = io.StringIO()
+    writer = csv.DictWriter(csv_buffer, fieldnames=["Date", "Name", "Year", "Letterboxd URI"])
+    writer.writeheader()
+    writer.writerow({
+        "Date": datetime.now().strftime("%Y-%m-%d"),
+        "Name": title,
+        "Year": payload.year or "",
+        "Letterboxd URI": f"https://letterboxd.com/film/{slug}/"
+    })
+    merge_and_save_master_csv(csv_buffer.getvalue())
+    
+    mid, is_new = add_or_update_movie(
         letterboxd_slug=slug,
         title=title,
         release_year=payload.year,
-        date_added=None
+        date_added=datetime.now().strftime("%Y-%m-%d")
     )
     
-    if auto_scan and not scanner_instance.is_scanning:
+    if is_new and auto_scan and not scanner_instance.is_scanning:
         background_tasks.add_task(scanner_instance.scan_all_pending)
         
-    return {"status": "ok", "message": f"Aggiunto film: {title}", "id": mid}
+    return {
+        "status": "ok",
+        "message": f"Aggiunto film: {title}" if is_new else f"Film già presente: {title}",
+        "id": mid,
+        "is_new": is_new
+    }
 
 @router.delete("/watchlist/clear")
 def clear_watchlist():

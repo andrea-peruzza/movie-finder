@@ -5,17 +5,19 @@
 
 ## Caratteristiche Principali
 
-- **Integrazione Letterboxd**:
-  - **Importazione 1-Click via file `watchlist.csv`**: esportato direttamente da Letterboxd in 2 clic (*Impostazioni > Import & Export > Export Your Data*). Supporta watchlist di qualsiasi dimensione (anche 2.000+ film) e conserva la data esatta di aggiunta.
-  - **Importazione via Username Letterboxd**: inserisci il tuo username per scaricare automaticamente la tua watchlist pubblica.
-  - **Aggiunta manuale rapida**: aggiungi al volo qualsiasi film per verificarne subito la disponibilità.
+- **Integrazione Letterboxd & Gestione CSV Incrementale**:
+  - **Importazione 1-Click via file `watchlist.csv`**: esportato da Letterboxd (*Settings > Import & Export > Export Your Data*).
+  - **Unione e Deduplicazione Automatica**: ogni nuovo file CSV importato viene automaticamente unito al file `watchlist.csv` presente nella cartella. Se ci sono più righe dello stesso film uscito nello stesso anno, viene mantenuta **una sola riga**.
+  - **Scansione Intelligente Selettiva**: la ricerca JustWatch viene avviata **esclusivamente per i film non presenti nella precedente importazione**, preservando i risultati e le offerte già verificate per tutti gli altri.
+  - **Importazione via Username Letterboxd**: inserisci il tuo username per scaricare e unire automaticamente la tua watchlist pubblica.
+  - **Aggiunta manuale rapida**: aggiungi al volo qualsiasi film per verificarne subito la disponibilità e registrarlo nel CSV.
 - **Disponibilità JustWatch Italia**:
   - Interroga in tempo reale le offerte per l'Italia (`country: IT`).
   - Trova i link diretti per avviare la riproduzione del film sulle piattaforme.
   - Recupera locandine ad alta definizione, voto IMDb, anno di uscita e generi.
 - **Supporto Piattaforme Italiane & Internazionali**:
   - **Gratuite in Italia (senza abbonamento)**: Rai Play, Mediaset Infinity, Pluto TV, Serially, Plex, Arte, Rakuten TV Free, ecc.
-  - **Abbonamenti Principali**: Netflix, Amazon Prime Video, Disney+, Now TV / NOW, Timvision, Apple TV+, Paramount+, Infinity+.
+  - **Abbonamenti Principali**: Netflix, Amazon Prime Video, Disney+, Now TV / NOW, Timvision, Apple TV+, Paramount+, Infinity+, **HBO Max**.
   - **Cinema d'Autore & Canali Specializzati**: MUBI, Nexo Plus, MYmovies One, Discovery+, Crunchyroll, Lionsgate+, Sky Go, ecc.
 - **Filtri Intelligenti**:
   - **Disponibili Subito**: mostra solo i film che puoi guardare adesso senza costi aggiuntivi (inclusi nei tuoi abbonamenti o gratis).

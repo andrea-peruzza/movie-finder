@@ -1,7 +1,7 @@
 import sqlite3
 import json
 import os
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "letterboxd_watch.db")
@@ -67,14 +67,27 @@ def init_db():
         "Disney Plus",
         "Now TV",
         "Timvision",
+        "HBO Max",
         "Pluto TV"
     ]
     cursor.execute("SELECT value FROM user_settings WHERE key = 'active_platforms'")
-    if not cursor.fetchone():
+    row = cursor.fetchone()
+    if not row:
         cursor.execute(
             "INSERT INTO user_settings (key, value) VALUES (?, ?)",
             ("active_platforms", json.dumps(default_platforms))
         )
+    else:
+        try:
+            current_p = json.loads(row["value"])
+            if "HBO Max" not in current_p:
+                current_p.append("HBO Max")
+                cursor.execute(
+                    "UPDATE user_settings SET value = ? WHERE key = 'active_platforms'",
+                    (json.dumps(current_p),)
+                )
+        except Exception:
+            pass
     
     conn.commit()
     conn.close()
@@ -108,28 +121,67 @@ def add_or_update_movie(
     release_year: Optional[int] = None,
     letterboxd_uri: Optional[str] = None,
     date_added: Optional[str] = None
-) -> int:
+) -> Tuple[int, bool]:
+    """
+    Inserts or updates a movie in the database.
+    Deduplication: identifies movies by title (case-insensitive) and release_year.
+    Returns: (movie_id, is_new)
+    is_new is True only if this movie was not previously in the database (or was still pending).
+    """
     conn = get_connection()
     cursor = conn.cursor()
     now_str = datetime.now().isoformat()
-    
+    clean_title = title.strip().lower()
+
+    if release_year:
+        cursor.execute(
+            "SELECT id, status, letterboxd_slug FROM movies WHERE LOWER(TRIM(title)) = ? AND release_year = ?",
+            (clean_title, release_year)
+        )
+    else:
+        cursor.execute(
+            "SELECT id, status, letterboxd_slug FROM movies WHERE LOWER(TRIM(title)) = ? AND (release_year IS NULL OR release_year = 0)",
+            (clean_title,)
+        )
+    row = cursor.fetchone()
+
+    if row:
+        movie_id = row["id"]
+        status = row["status"]
+        cursor.execute(
+            """
+            UPDATE movies
+            SET letterboxd_uri = COALESCE(movies.letterboxd_uri, ?),
+                date_added = COALESCE(movies.date_added, ?)
+            WHERE id = ?
+            """,
+            (letterboxd_uri, date_added, movie_id)
+        )
+        conn.commit()
+        conn.close()
+        return (movie_id, status == "pending")
+
+    # Also check if letterboxd_slug exists
+    cursor.execute("SELECT id, status FROM movies WHERE letterboxd_slug = ?", (letterboxd_slug,))
+    slug_row = cursor.fetchone()
+    if slug_row:
+        movie_id = slug_row["id"]
+        status = slug_row["status"]
+        conn.close()
+        return (movie_id, status == "pending")
+
+    # New film: insert with status = 'pending'
     cursor.execute(
         """
         INSERT INTO movies (letterboxd_slug, letterboxd_uri, title, release_year, date_added, status, updated_at)
         VALUES (?, ?, ?, ?, ?, 'pending', ?)
-        ON CONFLICT(letterboxd_slug) DO UPDATE SET
-            title = excluded.title,
-            release_year = COALESCE(excluded.release_year, movies.release_year),
-            letterboxd_uri = COALESCE(excluded.letterboxd_uri, movies.letterboxd_uri),
-            date_added = COALESCE(excluded.date_added, movies.date_added)
         """,
         (letterboxd_slug, letterboxd_uri, title, release_year, date_added, now_str)
     )
     conn.commit()
-    cursor.execute("SELECT id FROM movies WHERE letterboxd_slug = ?", (letterboxd_slug,))
-    movie_id = cursor.fetchone()["id"]
+    movie_id = cursor.lastrowid
     conn.close()
-    return movie_id
+    return (movie_id, True)
 
 def update_movie_justwatch_data(
     movie_id: int,
@@ -253,7 +305,16 @@ def get_movies(
         for off in unique_offers:
             pname = off["provider_name"]
             mtype = off["monetization_type"]
-            is_user_platform = any(up in pname.lower() or pname.lower() in up for up in user_platforms_lower)
+            # Match user platform (including aliases like HBO Max / Max)
+            pname_l = pname.lower().strip()
+            is_user_platform = False
+            for up in user_platforms_lower:
+                if up in pname_l or pname_l in up:
+                    is_user_platform = True
+                    break
+                if up in ("hbo max", "max") and ("hbo" in pname_l or "max" in pname_l):
+                    is_user_platform = True
+                    break
             
             if mtype in ("FREE", "ADS"):
                 free_offers.append(off)

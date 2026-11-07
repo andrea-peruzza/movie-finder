@@ -124,6 +124,14 @@ KNOWN_PROVIDERS = [
         "badge_color": "#b50000",
         "is_italian": True
     },
+    {
+        "id": "mxx",
+        "name": "HBO Max",
+        "category": "subscription",
+        "description": "Serie HBO, Warner Bros., film blockbuster ed esclusive Max",
+        "badge_color": "#5822b4",
+        "is_italian": False
+    },
     
     # --- Cinema d'Autore & Canali Specializzati ---
     {
