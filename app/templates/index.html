@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Letterboxd & JustWatch Italia — Film Disponibili Subito</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%20%22100%22%20%22100%22><text y=%22.9em%22 font-size=%2290%22>🎬</text></svg>">
+</head>
+<body>
+  <!-- HEADER -->
+  <header class="navbar">
+    <div class="container nav-content">
+      <div class="brand">
+        <div class="brand-icon">🎬</div>
+        <div class="brand-text">
+          <h1>Letterboxd <span class="accent-jw">JustWatch</span> <span class="badge-country">IT</span></h1>
+          <p class="tagline">Trova i film della tua watchlist pronti da guardare in streaming in Italia</p>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <button id="btn-open-platforms" class="btn btn-secondary">
+          <span class="icon">⚙️</span>
+          <span>Le Mie Piattaforme</span>
+          <span id="platforms-count-pill" class="pill-badge">0</span>
+        </button>
+        <button id="btn-open-import" class="btn btn-primary">
+          <span class="icon">📥</span>
+          <span>Importa Watchlist</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- STATS BAR -->
+  <section class="stats-section">
+    <div class="container stats-grid">
+      <div class="stat-card" id="card-stat-available" data-filter="available">
+        <div class="stat-icon-wrapper success">🟢</div>
+        <div class="stat-info">
+          <span class="stat-value" id="stat-available">0</span>
+          <span class="stat-label">Disponibili Subito</span>
+        </div>
+        <span class="stat-hint">Nei tuoi abbonamenti o gratis</span>
+      </div>
+
+      <div class="stat-card" id="card-stat-free" data-filter="free">
+        <div class="stat-icon-wrapper info">🆓</div>
+        <div class="stat-info">
+          <span class="stat-value" id="stat-free">0</span>
+          <span class="stat-label">100% Gratis</span>
+        </div>
+        <span class="stat-hint">RaiPlay, Mediaset, Pluto, ecc.</span>
+      </div>
+
+      <div class="stat-card" id="card-stat-total" data-filter="all">
+        <div class="stat-icon-wrapper neutral">🎬</div>
+        <div class="stat-info">
+          <span class="stat-value" id="stat-total">0</span>
+          <span class="stat-label">Totale Watchlist</span>
+        </div>
+        <span class="stat-hint">Tutti i film caricati</span>
+      </div>
+
+      <div class="stat-card" id="card-stat-pending" data-filter="not_available">
+        <div class="stat-icon-wrapper warning">⏳</div>
+        <div class="stat-info">
+          <span class="stat-value" id="stat-not-available">0</span>
+          <span class="stat-label">Non Disponibili</span>
+        </div>
+        <span class="stat-hint">Solo noleggio o non in streaming</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCAN PROGRESS BAR (Active during scan) -->
+  <div id="scan-banner" class="scan-banner container hidden">
+    <div class="scan-content">
+      <div class="scan-header">
+        <div class="scan-status-text">
+          <div class="spinner"></div>
+          <span id="scan-status-msg">Sincronizzazione JustWatch in corso...</span>
+        </div>
+        <div class="scan-controls">
+          <span id="scan-progress-numbers" class="scan-counter">0 / 0</span>
+          <button id="btn-cancel-scan" class="btn btn-sm btn-danger">Interrompi</button>
+        </div>
+      </div>
+      <div class="progress-bar-container">
+        <div id="scan-progress-fill" class="progress-bar-fill" style="width: 0%"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN APP CONTAINER -->
+  <main class="container main-content">
+    <!-- FILTERS AND SORTING TOOLBAR -->
+    <div class="toolbar">
+      <div class="toolbar-row">
+        <!-- Availability segmented filter -->
+        <div class="segmented-control" id="filter-mode-group">
+          <button class="seg-btn active" data-mode="available">🟢 Disponibili Subito</button>
+          <button class="seg-btn" data-mode="free">🆓 Solo Gratis</button>
+          <button class="seg-btn" data-mode="all">📦 Tutti i Film</button>
+          <button class="seg-btn" data-mode="not_available">⏳ Non Disponibili</button>
+        </div>
+
+        <!-- Search input -->
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="input-search" placeholder="Cerca per titolo film...">
+          <button id="btn-clear-search" class="clear-search-btn hidden">✕</button>
+        </div>
+      </div>
+
+      <div class="toolbar-row secondary">
+        <!-- Sorting dropdowns -->
+        <div class="sort-controls">
+          <label for="select-sort-by">Ordina per:</label>
+          <select id="select-sort-by" class="form-select">
+            <option value="date_added">📅 Ordine di aggiunta Watchlist</option>
+            <option value="release_year">🎬 Anno di rilascio del film</option>
+            <option value="imdb_score">⭐ Voto IMDb / Critica</option>
+            <option value="title">🔤 Titolo alfabetico</option>
+          </select>
+
+          <button id="btn-sort-order" class="btn-icon" title="Inverti ordine (Crescente / Decrescente)">
+            <span id="sort-order-icon">⬇️</span>
+          </button>
+        </div>
+
+        <!-- Genre filter -->
+        <div class="genre-control">
+          <label for="select-genre">Genere:</label>
+          <select id="select-genre" class="form-select">
+            <option value="all">Tutti i generi</option>
+          </select>
+        </div>
+
+        <!-- Action buttons -->
+        <div class="quick-actions">
+          <button id="btn-refresh-scan" class="btn btn-sm btn-outline" title="Aggiorna disponibilità da JustWatch">
+            🔄 Sincronizza
+          </button>
+          <button id="btn-clear-watchlist" class="btn btn-sm btn-ghost" title="Elimina tutti i film">
+            🗑️ Svuota
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACTIVE PLATFORMS BANNER -->
+    <div class="active-platforms-strip">
+      <span class="strip-label">Filtro abbonamenti attivi:</span>
+      <div id="active-platforms-pills" class="pills-container">
+        <!-- Injected via JS -->
+      </div>
+      <button id="btn-edit-active-platforms" class="btn-link">Modifica</button>
+    </div>
+
+    <!-- MOVIES GRID -->
+    <section class="movies-container">
+      <div id="movies-loading" class="movies-loading hidden">
+        <div class="spinner large"></div>
+        <p>Caricamento film in corso...</p>
+      </div>
+
+      <div id="movies-empty" class="movies-empty hidden">
+        <div class="empty-icon">🎬</div>
+        <h3 id="empty-title">Nessun film trovato</h3>
+        <p id="empty-desc">Importa la tua watchlist da Letterboxd o modifica i filtri selezionati.</p>
+        <button id="btn-empty-import" class="btn btn-primary">Importa Watchlist</button>
+      </div>
+
+      <div id="movies-grid" class="movies-grid">
+        <!-- Movie cards injected via JS -->
+      </div>
+    </section>
+  </main>
+
+  <!-- MODAL: MANAGE PLATFORMS -->
+  <div id="modal-platforms" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="modal-icon">📺</span>
+          <h2>Piattaforme di Streaming in Italia</h2>
+        </div>
+        <button class="modal-close-btn" data-close="modal-platforms">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-intro">
+          Seleziona le piattaforme a cui hai un abbonamento attivo o che desideri visualizzare.
+          Le piattaforme gratuite italiane (come <strong>RaiPlay</strong> e <strong>Mediaset Infinity</strong>) sono incluse automaticamente!
+        </p>
+
+        <div class="platforms-quick-actions">
+          <button id="btn-select-all-platforms" class="btn btn-sm btn-outline">Seleziona Tutte</button>
+          <button id="btn-deselect-all-platforms" class="btn btn-sm btn-outline">Deseleziona Tutte</button>
+          <button id="btn-select-free-only" class="btn btn-sm btn-outline">Solo Gratuite</button>
+        </div>
+
+        <div class="platforms-categories">
+          <!-- Piattaforme Gratuite -->
+          <div class="platform-group">
+            <h4 class="group-title">🆓 Piattaforme Gratuite (Senza abbonamento)</h4>
+            <div id="platforms-free-grid" class="platforms-checkbox-grid"></div>
+          </div>
+
+          <!-- Abbonamenti Principali -->
+          <div class="platform-group">
+            <h4 class="group-title">🍿 Principali Servizi in Abbonamento</h4>
+            <div id="platforms-sub-grid" class="platforms-checkbox-grid"></div>
+          </div>
+
+          <!-- Cinema d'Autore & Specializzati -->
+          <div class="platform-group">
+            <h4 class="group-title">🎭 Cinema d'Autore & Canali Specializzati</h4>
+            <div id="platforms-special-grid" class="platforms-checkbox-grid"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="modal-platforms">Chiudi</button>
+        <button id="btn-save-platforms" class="btn btn-primary">Salva Preferenze</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: IMPORT WATCHLIST -->
+  <div id="modal-import" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="modal-icon">📥</span>
+          <h2>Importa la Watchlist di Letterboxd</h2>
+        </div>
+        <button class="modal-close-btn" data-close="modal-import">✕</button>
+      </div>
+      <div class="modal-body">
+        <!-- Import Tabs -->
+        <div class="import-tabs">
+          <button class="tab-btn active" data-tab="tab-csv">📁 File CSV (Consigliato)</button>
+          <button class="tab-btn" data-tab="tab-username">👤 Username Letterboxd</button>
+          <button class="tab-btn" data-tab="tab-single">➕ Film Singolo</button>
+        </div>
+
+        <!-- TAB 1: CSV FILE -->
+        <div id="tab-csv" class="tab-content active">
+          <div class="csv-instructions">
+            <h4>💡 Come esportare la tua watchlist da Letterboxd in 3 passaggi:</h4>
+            <ol>
+              <li>Vai sul sito di <a href="https://letterboxd.com/settings/data/" target="_blank" rel="noopener">Letterboxd &gt; Settings &gt; Import & Export</a></li>
+              <li>Clicca sul pulsante <strong>"Export Your Data"</strong> (scaricherai un file ZIP)</li>
+              <li>Estrai o trascina qui direttamente il file <strong>watchlist.csv</strong></li>
+            </ol>
+            <p class="notice">✨ <em>Vantaggi: 100% istantaneo, supporta watchlist enormi senza limiti e include la <strong>data esatta</strong> in cui hai aggiunto ogni film!</em></p>
+          </div>
+
+          <div id="dropzone-csv" class="dropzone">
+            <div class="dropzone-icon">📄</div>
+            <p class="dropzone-main-text">Trascina qui il file <strong>watchlist.csv</strong></p>
+            <p class="dropzone-sub-text">oppure clicca per sfogliare i file del computer</p>
+            <input type="file" id="input-csv-file" accept=".csv" class="hidden-file-input">
+            <div id="csv-file-selected" class="file-selected-badge hidden">
+              <span class="file-name" id="selected-file-name">watchlist.csv</span>
+              <button id="btn-remove-selected-file" class="btn-remove-file">✕</button>
+            </div>
+          </div>
+
+          <div class="form-check-inline">
+            <input type="checkbox" id="check-auto-scan-csv" checked>
+            <label for="check-auto-scan-csv">Avvia subito la verifica della disponibilità su JustWatch</label>
+          </div>
+
+          <button id="btn-submit-csv" class="btn btn-primary btn-block" disabled>
+            Carica Watchlist CSV
+          </button>
+        </div>
+
+        <!-- TAB 2: USERNAME -->
+        <div id="tab-username" class="tab-content">
+          <p class="tab-intro">
+            Inserisci il tuo nome utente di Letterboxd. Scaricheremo automaticamente i film presenti nella tua watchlist pubblica.
+          </p>
+          <div class="form-group">
+            <label for="input-username">Username Letterboxd:</label>
+            <div class="input-prefix-wrapper">
+              <span class="prefix">letterboxd.com/</span>
+              <input type="text" id="input-username" placeholder="il-tuo-username" class="form-input">
+            </div>
+          </div>
+
+          <div class="form-check-inline">
+            <input type="checkbox" id="check-auto-scan-user" checked>
+            <label for="check-auto-scan-user">Avvia subito la verifica della disponibilità su JustWatch</label>
+          </div>
+
+          <button id="btn-submit-username" class="btn btn-primary btn-block">
+            Scarica Watchlist da Profilo
+          </button>
+        </div>
+
+        <!-- TAB 3: SINGLE MOVIE -->
+        <div id="tab-single" class="tab-content">
+          <p class="tab-intro">Aggiungi manualmente un film per verificare subito dove vederlo in streaming:</p>
+          <div class="form-group">
+            <label for="input-single-title">Titolo del film:</label>
+            <input type="text" id="input-single-title" placeholder="Es: C'è ancora domani, Inception..." class="form-input">
+          </div>
+          <div class="form-group">
+            <label for="input-single-year">Anno di uscita (opzionale):</label>
+            <input type="number" id="input-single-year" placeholder="Es: 2023" class="form-input" min="1900" max="2030">
+          </div>
+          <button id="btn-submit-single" class="btn btn-primary btn-block">
+            Cerca e Aggiungi Film
+          </button>
+        </div>
+
+        <!-- Feedback message area -->
+        <div id="import-msg" class="import-msg hidden"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATIONS -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- SCRIPTS -->
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
