@@ -250,7 +250,8 @@ def get_movies(
     sort_by: str = "date_added",     # 'date_added', 'release_year', 'imdb_score', 'title'
     sort_order: str = "desc",        # 'asc', 'desc'
     search: Optional[str] = None,
-    genre: Optional[str] = None
+    genre: Optional[str] = None,
+    platform: Optional[str] = None   # Single platform filter (e.g. 'Netflix', 'Amazon Prime Video')
 ) -> List[Dict[str, Any]]:
     conn = get_connection()
     cursor = conn.cursor()
@@ -275,6 +276,7 @@ def get_movies(
     results = []
     
     user_platforms_lower = [p.lower().strip() for p in (active_platforms or [])]
+    target_platform_lower = platform.lower().strip() if platform else None
     
     for m in movies_rows:
         movie = dict(m)
@@ -334,8 +336,22 @@ def get_movies(
         movie["is_available_now"] = (len(flatrate_user) > 0 or len(free_offers) > 0)
         movie["has_free"] = (len(free_offers) > 0)
         
-        # Apply filters
-        if filter_mode == "available" and not movie["is_available_now"]:
+        # If single platform filter is active, check whether movie has a streaming offer on that platform
+        if target_platform_lower:
+            has_target_platform = False
+            for off in (flatrate_user + free_offers + flatrate_other):
+                p_name_l = off["provider_name"].lower().strip()
+                if target_platform_lower in p_name_l or p_name_l in target_platform_lower:
+                    has_target_platform = True
+                    break
+                if target_platform_lower in ("hbo max", "max") and ("hbo" in p_name_l or "max" in p_name_l):
+                    has_target_platform = True
+                    break
+            if not has_target_platform:
+                continue
+
+        # Apply general filters
+        if filter_mode == "available" and not movie["is_available_now"] and not target_platform_lower:
             continue
         elif filter_mode == "free" and not movie["has_free"]:
             continue

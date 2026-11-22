@@ -4,6 +4,7 @@
 
 const state = {
   filterMode: 'available', // 'available', 'free', 'all', 'not_available'
+  selectedPlatform: null,  // null or specific platform string (e.g. 'Netflix')
   sortBy: 'date_added',
   sortOrder: 'desc',
   search: '',
@@ -258,6 +259,7 @@ async function loadMovies() {
   });
   if (state.search) params.append('search', state.search);
   if (state.genre && state.genre !== 'all') params.append('genre', state.genre);
+  if (state.selectedPlatform) params.append('platform', state.selectedPlatform);
 
   try {
     const res = await fetch(`/api/watchlist/movies?${params.toString()}`);
@@ -285,6 +287,9 @@ function updateEmptyStateMessage() {
   if (state.search) {
     DOM.emptyTitle.textContent = `Nessun risultato per "${state.search}"`;
     DOM.emptyDesc.textContent = "Prova a cercare un altro titolo o svuota la barra di ricerca.";
+  } else if (state.selectedPlatform) {
+    DOM.emptyTitle.textContent = `Nessun film su ${state.selectedPlatform}`;
+    DOM.emptyDesc.textContent = `Al momento nessun film della tua watchlist è disponibile su ${state.selectedPlatform}. Clicca nuovamente sull'icona per mostrare tutte le piattaforme.`;
   } else if (state.filterMode === 'available') {
     DOM.emptyTitle.textContent = "Nessun film disponibile subito";
     DOM.emptyDesc.textContent = "Nessun film della tua watchlist è attualmente in streaming sui tuoi abbonamenti o gratis. Prova a selezionare altre piattaforme o visualizza tutti i film.";
@@ -365,8 +370,8 @@ function renderMovieCards(movies) {
 
     const titleH3 = document.createElement('h3');
     titleH3.className = 'card-title';
-    titleH3.textContent = movie.jw_title || movie.title;
-    titleH3.title = movie.title;
+    titleH3.textContent = movie.title || movie.jw_title;
+    titleH3.title = movie.jw_title && movie.jw_title !== movie.title ? `${movie.title} (JustWatch: ${movie.jw_title})` : movie.title;
     titleArea.appendChild(titleH3);
 
     const meta = document.createElement('div');
@@ -576,8 +581,22 @@ function renderActivePlatformsPills() {
 
   state.activePlatforms.forEach(p => {
     const pill = document.createElement('span');
-    pill.className = 'platform-pill';
+    pill.className = `platform-pill ${state.selectedPlatform === p ? 'selected' : ''}`;
     pill.textContent = p;
+    pill.title = state.selectedPlatform === p 
+      ? `Filtro attivo su ${p} (clicca per mostrare tutte le piattaforme)` 
+      : `Mostra solo i film disponibili su ${p}`;
+
+    pill.addEventListener('click', () => {
+      if (state.selectedPlatform === p) {
+        state.selectedPlatform = null;
+      } else {
+        state.selectedPlatform = p;
+      }
+      renderActivePlatformsPills();
+      loadMovies();
+    });
+
     DOM.activePlatformsPills.appendChild(pill);
   });
 }

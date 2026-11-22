@@ -50,11 +50,76 @@ query GetSearchTitles($country: Country!, $language: Language!, $searchTitlesFil
 }
 """
 
+import re
+import difflib
+import httpx
+import asyncio
+from typing import Dict, Any, Optional, List
+
+GQL_URL = "https://apis.justwatch.com/graphql"
+IMAGE_BASE_URL = "https://images.justwatch.com"
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Content-Type": "application/json"
+}
+
+SEARCH_QUERY = """
+query GetSearchTitles($country: Country!, $languageIt: Language!, $languageEn: Language!, $searchTitlesFilter: TitleFilter) {
+  popularTitles(country: $country, filter: $searchTitlesFilter) {
+    edges {
+      node {
+        id
+        objectId
+        objectType
+        contentIt: content(country: $country, language: $languageIt) {
+          title
+          originalReleaseYear
+          originalTitle
+          posterUrl
+          shortDescription
+          scoring {
+            imdbScore
+            tmdbScore
+          }
+          genres {
+            shortName
+            translation(language: $languageIt)
+          }
+        }
+        contentEn: content(country: $country, language: $languageEn) {
+          title
+          originalReleaseYear
+          originalTitle
+        }
+        offers(country: $country, platform: WEB) {
+          monetizationType
+          presentationType
+          package {
+            id
+            packageId
+            clearName
+            shortName
+            icon
+          }
+          standardWebURL
+        }
+      }
+    }
+  }
+}
+"""
+
+def normalize_title(t: str) -> str:
+    if not t:
+        return ""
+    # Remove punctuation and multiple spaces
+    t_clean = re.sub(r'[^\w\s]', ' ', t.lower())
+    return re.sub(r'\s+', ' ', t_clean).strip()
+
 def format_image_url(template_url: Optional[str], size: str = "s332", ext: str = "webp") -> Optional[str]:
     if not template_url:
         return None
-    # Template is like: /poster/112379151/{profile}/inception.{format}
-    # or /icon/322992749/{profile}/amazonprimevideo.{format}
     url = template_url.replace("{profile}", size).replace("{format}", ext)
     if not url.startswith("http"):
         url = IMAGE_BASE_URL + url
@@ -68,6 +133,8 @@ async def search_justwatch(
     """
     Search JustWatch in Italy for a movie by title and year.
     Returns matched details, content info, and all offers.
+    Accurately matches against Italian title, English title, and Original title.
+    Never assigns an unrelated film or show as a fallback.
     """
     close_client = False
     if client is None:
@@ -76,7 +143,8 @@ async def search_justwatch(
 
     variables = {
         "country": "IT",
-        "language": "it",
+        "languageIt": "it",
+        "languageEn": "en",
         "searchTitlesFilter": {
             "searchQuery": title
         }
@@ -96,23 +164,69 @@ async def search_justwatch(
         if not edges:
             return None
 
-        # Best match scoring
+        norm_search = normalize_title(title)
+        words_search = set(norm_search.split())
+
         best_node = None
+        best_score = -1.0
+
         for edge in edges:
             node = edge["node"]
-            c = node.get("content") or {}
-            node_year = c.get("originalReleaseYear")
+            cit = node.get("contentIt") or {}
+            cen = node.get("contentEn") or {}
+            obj_type = (node.get("objectType") or "").upper()
 
-            # Match movie content types
+            node_year = cit.get("originalReleaseYear") or cen.get("originalReleaseYear")
+
+            # Year filter: if release_year is provided, reject if difference > 2 years
+            year_diff = None
             if release_year and node_year:
-                if abs(node_year - release_year) <= 1:
-                    best_node = node
-                    break
-        
-        if not best_node:
-            best_node = edges[0]["node"]
+                year_diff = abs(node_year - release_year)
+                if year_diff > 2:
+                    continue
 
-        content = best_node.get("content") or {}
+            # Candidate titles: Italian title, English title, Original title
+            candidate_titles = [cit.get("title"), cen.get("title"), cit.get("originalTitle")]
+            
+            best_cand_sim = 0.0
+            for cand in candidate_titles:
+                if not cand:
+                    continue
+                n_cand = normalize_title(cand)
+                if not n_cand:
+                    continue
+
+                if norm_search == n_cand:
+                    sim = 1.0
+                else:
+                    sim = difflib.SequenceMatcher(None, norm_search, n_cand).ratio()
+                    words_cand = set(n_cand.split())
+                    # Check word subset/superset
+                    if words_search and words_cand:
+                        if words_search.issubset(words_cand) or words_cand.issubset(words_search):
+                            sim = max(sim, 0.85)
+
+                if sim > best_cand_sim:
+                    best_cand_sim = sim
+
+            # Strict threshold: must be sufficiently similar to at least one valid title
+            if best_cand_sim < 0.75:
+                continue
+
+            # Scoring calculation
+            year_score = 0.3 if year_diff == 0 else (0.15 if year_diff == 1 else 0.0)
+            type_bonus = 0.2 if obj_type == "MOVIE" else -0.3
+            total_score = best_cand_sim + year_score + type_bonus
+
+            if total_score > best_score:
+                best_score = total_score
+                best_node = node
+
+        # If no result meets the criteria, do NOT fallback!
+        if not best_node:
+            return None
+
+        content = best_node.get("contentIt") or {}
         raw_offers = best_node.get("offers") or []
 
         # Parse genres

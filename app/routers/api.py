@@ -66,7 +66,8 @@ def list_movies(
     sort_by: str = "date_added",
     sort_order: str = "desc",
     search: Optional[str] = None,
-    genre: Optional[str] = None
+    genre: Optional[str] = None,
+    platform: Optional[str] = None
 ):
     active = get_setting("active_platforms", [])
     movies = get_movies(
@@ -75,7 +76,8 @@ def list_movies(
         sort_by=sort_by,
         sort_order=sort_order,
         search=search,
-        genre=genre
+        genre=genre,
+        platform=platform
     )
     return {"movies": movies, "count": len(movies)}
 

@@ -537,10 +537,33 @@ body {
   background-color: #192028;
   border: 1px solid #2a3442;
   border-radius: 999px;
-  padding: 3px 10px;
-  font-size: 0.78rem;
+  padding: 4px 12px;
+  font-size: 0.8rem;
   font-weight: 600;
   color: #d1d5db;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.platform-pill:hover {
+  background-color: #263342;
+  color: #fff;
+  border-color: #4b5e76;
+  transform: translateY(-1px);
+}
+
+.platform-pill.selected {
+  background: linear-gradient(135deg, #00c030 0%, #009e25 100%);
+  border-color: #00e038;
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(0, 192, 48, 0.4);
+  font-weight: 700;
+}
+
+.platform-pill.selected::after {
+  content: " ✓";
+  font-size: 0.75rem;
 }
 
 /* MOVIES GRID */
