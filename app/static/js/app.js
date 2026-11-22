@@ -11,6 +11,7 @@ const state = {
   genre: 'all',
   activePlatforms: [],
   knownProviders: [],
+  currentFilteredMovies: [], // Cached list of currently filtered movies
   selectedCsvFile: null,
   scanPollTimer: null,
   searchDebounceTimer: null
@@ -51,10 +52,15 @@ const DOM = {
   // Modals
   modalPlatforms: document.getElementById('modal-platforms'),
   modalImport: document.getElementById('modal-import'),
+  modalRandom: document.getElementById('modal-random'),
   btnOpenPlatforms: document.getElementById('btn-open-platforms'),
   btnEditActivePlatforms: document.getElementById('btn-edit-active-platforms'),
   btnOpenImport: document.getElementById('btn-open-import'),
   btnEmptyImport: document.getElementById('btn-empty-import'),
+  btnRandomMovies: document.getElementById('btn-random-movies'),
+  btnRerollRandom: document.getElementById('btn-reroll-random'),
+  randomMoviesGrid: document.getElementById('random-movies-grid'),
+  randomSubtitle: document.getElementById('random-subtitle'),
   
   // Platforms Modal
   platformsFreeGrid: document.getElementById('platforms-free-grid'),
@@ -159,7 +165,8 @@ function initEventListeners() {
   });
 
   // Close modals on outside click
-  [DOM.modalPlatforms, DOM.modalImport].forEach(modal => {
+  [DOM.modalPlatforms, DOM.modalImport, DOM.modalRandom].forEach(modal => {
+    if (!modal) return;
     modal.addEventListener('click', (e) => {
       if (e.target === modal) closeModal(modal);
     });
@@ -193,6 +200,14 @@ function initEventListeners() {
   DOM.btnDeselectAllPlatforms.addEventListener('click', () => toggleAllPlatforms(false));
   DOM.btnSelectFreeOnly.addEventListener('click', selectOnlyFreePlatforms);
   DOM.btnSavePlatforms.addEventListener('click', handleSavePlatforms);
+
+  // Random movies picker
+  if (DOM.btnRandomMovies) {
+    DOM.btnRandomMovies.addEventListener('click', handleOpenRandomModal);
+  }
+  if (DOM.btnRerollRandom) {
+    DOM.btnRerollRandom.addEventListener('click', rollRandomMovies);
+  }
 
   // Scan actions
   DOM.btnRefreshScan.addEventListener('click', handleStartScan);
@@ -266,6 +281,7 @@ async function loadMovies() {
     if (!res.ok) throw new Error("Errore nel caricamento film");
     const data = await res.json();
     const movies = data.movies || [];
+    state.currentFilteredMovies = movies;
 
     DOM.moviesLoading.classList.add('hidden');
 
@@ -302,208 +318,260 @@ function updateEmptyStateMessage() {
   }
 }
 
+function createMovieCard(movie) {
+  const card = document.createElement('article');
+  card.className = 'movie-card';
+
+  // Poster section
+  const posterWrapper = document.createElement('div');
+  posterWrapper.className = 'card-poster-wrapper';
+
+  if (movie.poster_url) {
+    const img = document.createElement('img');
+    img.className = 'card-poster-img';
+    img.src = movie.poster_url;
+    img.alt = movie.title;
+    img.loading = 'lazy';
+    img.onerror = () => {
+      img.remove();
+      posterWrapper.appendChild(createPosterFallback(movie.title));
+    };
+    posterWrapper.appendChild(img);
+  } else {
+    posterWrapper.appendChild(createPosterFallback(movie.title));
+  }
+
+  // Top badges on poster
+  const topBadges = document.createElement('div');
+  topBadges.className = 'poster-badges-top';
+
+  // IMDb score
+  if (movie.imdb_score) {
+    const imdbBadge = document.createElement('div');
+    imdbBadge.className = 'badge-imdb';
+    imdbBadge.innerHTML = `⭐ <span>${movie.imdb_score.toFixed(1)}</span>`;
+    topBadges.appendChild(imdbBadge);
+  } else {
+    topBadges.appendChild(document.createElement('div'));
+  }
+
+  // Status badge
+  const statusBadge = document.createElement('div');
+  if (movie.is_available_now) {
+    if (movie.has_free && movie.flatrate_user_offers.length === 0) {
+      statusBadge.className = 'badge-status free-only';
+      statusBadge.textContent = 'GRATIS';
+    } else {
+      statusBadge.className = 'badge-status available';
+      statusBadge.textContent = 'SUBITO';
+    }
+  } else {
+    statusBadge.className = 'badge-status not-available';
+    statusBadge.textContent = movie.rent_buy_offers.length > 0 ? 'NOLEGGIO' : 'NON DISP.';
+  }
+  topBadges.appendChild(statusBadge);
+  posterWrapper.appendChild(topBadges);
+  card.appendChild(posterWrapper);
+
+  // Card Body
+  const body = document.createElement('div');
+  body.className = 'card-body';
+
+  // Title & Year
+  const titleArea = document.createElement('div');
+  titleArea.className = 'card-title-area';
+
+  const titleH3 = document.createElement('h3');
+  titleH3.className = 'card-title';
+  titleH3.textContent = movie.title || movie.jw_title;
+  titleH3.title = movie.jw_title && movie.jw_title !== movie.title ? `${movie.title} (JustWatch: ${movie.jw_title})` : movie.title;
+  titleArea.appendChild(titleH3);
+
+  const meta = document.createElement('div');
+  meta.className = 'card-meta';
+  const displayYear = movie.release_year || movie.jw_year;
+  if (displayYear) {
+    const yearSpan = document.createElement('span');
+    yearSpan.className = 'card-year';
+    yearSpan.textContent = displayYear;
+    meta.appendChild(yearSpan);
+  }
+
+  // Genre tags
+  if (movie.genres && movie.genres.length > 0) {
+    const genresWrap = document.createElement('div');
+    genresWrap.className = 'card-genres';
+    movie.genres.slice(0, 2).forEach(g => {
+      const tag = document.createElement('span');
+      tag.className = 'genre-tag';
+      tag.textContent = g;
+      genresWrap.appendChild(tag);
+    });
+    meta.appendChild(genresWrap);
+  }
+  titleArea.appendChild(meta);
+
+  // Added Date
+  if (movie.date_added) {
+    const dateAddedSpan = document.createElement('div');
+    dateAddedSpan.className = 'card-date-added';
+    dateAddedSpan.textContent = `Aggiunto: ${formatDate(movie.date_added)}`;
+    titleArea.appendChild(dateAddedSpan);
+  }
+
+  body.appendChild(titleArea);
+
+  // Offers Section
+  const offersSec = document.createElement('div');
+  offersSec.className = 'card-offers-section';
+
+  let hasAnyOffer = false;
+
+  // 1. User active subscriptions (Flatrate)
+  if (movie.flatrate_user_offers && movie.flatrate_user_offers.length > 0) {
+    hasAnyOffer = true;
+    const subGroup = document.createElement('div');
+    subGroup.className = 'offers-sub-group';
+    subGroup.innerHTML = `<span class="offers-group-title sub">🍿 Nei tuoi abbonamenti:</span>`;
+    const list = document.createElement('div');
+    list.className = 'offers-list';
+    movie.flatrate_user_offers.forEach(off => {
+      list.appendChild(createOfferBadge(off, false));
+    });
+    subGroup.appendChild(list);
+    offersSec.appendChild(subGroup);
+  }
+
+  // 2. Free Italian / Ads platforms
+  if (movie.free_offers && movie.free_offers.length > 0) {
+    hasAnyOffer = true;
+    const freeGroup = document.createElement('div');
+    freeGroup.className = 'offers-free-group';
+    freeGroup.innerHTML = `<span class="offers-group-title free">🆓 Disponibile Gratis:</span>`;
+    const list = document.createElement('div');
+    list.className = 'offers-list';
+    movie.free_offers.forEach(off => {
+      list.appendChild(createOfferBadge(off, true));
+    });
+    freeGroup.appendChild(list);
+    offersSec.appendChild(freeGroup);
+  }
+
+  // 3. Other subscriptions (not currently active for user)
+  if (movie.flatrate_other_offers && movie.flatrate_other_offers.length > 0 && !movie.is_available_now) {
+    hasAnyOffer = true;
+    const otherGroup = document.createElement('div');
+    otherGroup.className = 'offers-other-group';
+    otherGroup.innerHTML = `<span class="offers-group-title other">🔒 Altri servizi:</span>`;
+    const list = document.createElement('div');
+    list.className = 'offers-list';
+    movie.flatrate_other_offers.slice(0, 3).forEach(off => {
+      list.appendChild(createOfferBadge(off, false, true));
+    });
+    otherGroup.appendChild(list);
+    offersSec.appendChild(otherGroup);
+  }
+
+  // 4. Rent / Buy indicator if no streaming
+  if (!hasAnyOffer) {
+    const notice = document.createElement('div');
+    notice.className = 'no-offers-notice';
+    if (movie.rent_buy_offers && movie.rent_buy_offers.length > 0) {
+      notice.innerHTML = `💳 Disponibile a noleggio/acquisto (${movie.rent_buy_offers.length} store)`;
+    } else if (movie.status === 'pending') {
+      notice.innerHTML = `⏳ In attesa di verifica JustWatch...`;
+    } else {
+      notice.innerHTML = `❌ Non disponibile in streaming in Italia`;
+    }
+    offersSec.appendChild(notice);
+  }
+
+  body.appendChild(offersSec);
+
+  // External Links (Letterboxd & JustWatch)
+  const extLinks = document.createElement('div');
+  extLinks.className = 'card-external-links';
+
+  if (movie.letterboxd_uri) {
+    const lbLink = document.createElement('a');
+    lbLink.href = movie.letterboxd_uri;
+    lbLink.target = '_blank';
+    lbLink.rel = 'noopener';
+    lbLink.className = 'card-link-item';
+    lbLink.textContent = 'Letterboxd ↗';
+    extLinks.appendChild(lbLink);
+  }
+
+  const jwQuery = encodeURIComponent(movie.jw_title || movie.title);
+  const jwLink = document.createElement('a');
+  jwLink.href = `https://www.justwatch.com/it/cerca?q=${jwQuery}`;
+  jwLink.target = '_blank';
+  jwLink.rel = 'noopener';
+  jwLink.className = 'card-link-item';
+  jwLink.textContent = 'JustWatch ↗';
+  extLinks.appendChild(jwLink);
+
+  body.appendChild(extLinks);
+  card.appendChild(body);
+  return card;
+}
+
 function renderMovieCards(movies) {
   const fragment = document.createDocumentFragment();
-
   movies.forEach(movie => {
-    const card = document.createElement('article');
-    card.className = 'movie-card';
-
-    // Poster section
-    const posterWrapper = document.createElement('div');
-    posterWrapper.className = 'card-poster-wrapper';
-
-    if (movie.poster_url) {
-      const img = document.createElement('img');
-      img.className = 'card-poster-img';
-      img.src = movie.poster_url;
-      img.alt = movie.title;
-      img.loading = 'lazy';
-      img.onerror = () => {
-        img.remove();
-        posterWrapper.appendChild(createPosterFallback(movie.title));
-      };
-      posterWrapper.appendChild(img);
-    } else {
-      posterWrapper.appendChild(createPosterFallback(movie.title));
-    }
-
-    // Top badges on poster
-    const topBadges = document.createElement('div');
-    topBadges.className = 'poster-badges-top';
-
-    // IMDb score
-    if (movie.imdb_score) {
-      const imdbBadge = document.createElement('div');
-      imdbBadge.className = 'badge-imdb';
-      imdbBadge.innerHTML = `⭐ <span>${movie.imdb_score.toFixed(1)}</span>`;
-      topBadges.appendChild(imdbBadge);
-    } else {
-      topBadges.appendChild(document.createElement('div'));
-    }
-
-    // Status badge
-    const statusBadge = document.createElement('div');
-    if (movie.is_available_now) {
-      if (movie.has_free && movie.flatrate_user_offers.length === 0) {
-        statusBadge.className = 'badge-status free-only';
-        statusBadge.textContent = 'GRATIS';
-      } else {
-        statusBadge.className = 'badge-status available';
-        statusBadge.textContent = 'SUBITO';
-      }
-    } else {
-      statusBadge.className = 'badge-status not-available';
-      statusBadge.textContent = movie.rent_buy_offers.length > 0 ? 'NOLEGGIO' : 'NON DISP.';
-    }
-    topBadges.appendChild(statusBadge);
-    posterWrapper.appendChild(topBadges);
-    card.appendChild(posterWrapper);
-
-    // Card Body
-    const body = document.createElement('div');
-    body.className = 'card-body';
-
-    // Title & Year
-    const titleArea = document.createElement('div');
-    titleArea.className = 'card-title-area';
-
-    const titleH3 = document.createElement('h3');
-    titleH3.className = 'card-title';
-    titleH3.textContent = movie.title || movie.jw_title;
-    titleH3.title = movie.jw_title && movie.jw_title !== movie.title ? `${movie.title} (JustWatch: ${movie.jw_title})` : movie.title;
-    titleArea.appendChild(titleH3);
-
-    const meta = document.createElement('div');
-    meta.className = 'card-meta';
-    const displayYear = movie.release_year || movie.jw_year;
-    if (displayYear) {
-      const yearSpan = document.createElement('span');
-      yearSpan.className = 'card-year';
-      yearSpan.textContent = displayYear;
-      meta.appendChild(yearSpan);
-    }
-
-    // Genre tags
-    if (movie.genres && movie.genres.length > 0) {
-      const genresWrap = document.createElement('div');
-      genresWrap.className = 'card-genres';
-      movie.genres.slice(0, 2).forEach(g => {
-        const tag = document.createElement('span');
-        tag.className = 'genre-tag';
-        tag.textContent = g;
-        genresWrap.appendChild(tag);
-      });
-      meta.appendChild(genresWrap);
-    }
-    titleArea.appendChild(meta);
-
-    // Added Date
-    if (movie.date_added) {
-      const dateAddedSpan = document.createElement('div');
-      dateAddedSpan.className = 'card-date-added';
-      dateAddedSpan.textContent = `Aggiunto: ${formatDate(movie.date_added)}`;
-      titleArea.appendChild(dateAddedSpan);
-    }
-
-    body.appendChild(titleArea);
-
-    // Offers Section
-    const offersSec = document.createElement('div');
-    offersSec.className = 'card-offers-section';
-
-    let hasAnyOffer = false;
-
-    // 1. User active subscriptions (Flatrate)
-    if (movie.flatrate_user_offers && movie.flatrate_user_offers.length > 0) {
-      hasAnyOffer = true;
-      const subGroup = document.createElement('div');
-      subGroup.className = 'offers-sub-group';
-      subGroup.innerHTML = `<span class="offers-group-title sub">🍿 Nei tuoi abbonamenti:</span>`;
-      const list = document.createElement('div');
-      list.className = 'offers-list';
-      movie.flatrate_user_offers.forEach(off => {
-        list.appendChild(createOfferBadge(off, false));
-      });
-      subGroup.appendChild(list);
-      offersSec.appendChild(subGroup);
-    }
-
-    // 2. Free Italian / Ads platforms
-    if (movie.free_offers && movie.free_offers.length > 0) {
-      hasAnyOffer = true;
-      const freeGroup = document.createElement('div');
-      freeGroup.className = 'offers-free-group';
-      freeGroup.innerHTML = `<span class="offers-group-title free">🆓 Disponibile Gratis:</span>`;
-      const list = document.createElement('div');
-      list.className = 'offers-list';
-      movie.free_offers.forEach(off => {
-        list.appendChild(createOfferBadge(off, true));
-      });
-      freeGroup.appendChild(list);
-      offersSec.appendChild(freeGroup);
-    }
-
-    // 3. Other subscriptions (not currently active for user)
-    if (movie.flatrate_other_offers && movie.flatrate_other_offers.length > 0 && !movie.is_available_now) {
-      hasAnyOffer = true;
-      const otherGroup = document.createElement('div');
-      otherGroup.className = 'offers-other-group';
-      otherGroup.innerHTML = `<span class="offers-group-title other">🔒 Altri servizi:</span>`;
-      const list = document.createElement('div');
-      list.className = 'offers-list';
-      movie.flatrate_other_offers.slice(0, 3).forEach(off => {
-        list.appendChild(createOfferBadge(off, false, true));
-      });
-      otherGroup.appendChild(list);
-      offersSec.appendChild(otherGroup);
-    }
-
-    // 4. Rent / Buy indicator if no streaming
-    if (!hasAnyOffer) {
-      const notice = document.createElement('div');
-      notice.className = 'no-offers-notice';
-      if (movie.rent_buy_offers && movie.rent_buy_offers.length > 0) {
-        notice.innerHTML = `💳 Disponibile a noleggio/acquisto (${movie.rent_buy_offers.length} store)`;
-      } else if (movie.status === 'pending') {
-        notice.innerHTML = `⏳ In attesa di verifica JustWatch...`;
-      } else {
-        notice.innerHTML = `❌ Non disponibile in streaming in Italia`;
-      }
-      offersSec.appendChild(notice);
-    }
-
-    body.appendChild(offersSec);
-
-    // External Links (Letterboxd & JustWatch)
-    const extLinks = document.createElement('div');
-    extLinks.className = 'card-external-links';
-
-    if (movie.letterboxd_uri) {
-      const lbLink = document.createElement('a');
-      lbLink.href = movie.letterboxd_uri;
-      lbLink.target = '_blank';
-      lbLink.rel = 'noopener';
-      lbLink.className = 'card-link-item';
-      lbLink.textContent = 'Letterboxd ↗';
-      extLinks.appendChild(lbLink);
-    }
-
-    const jwQuery = encodeURIComponent(movie.jw_title || movie.title);
-    const jwLink = document.createElement('a');
-    jwLink.href = `https://www.justwatch.com/it/cerca?q=${jwQuery}`;
-    jwLink.target = '_blank';
-    jwLink.rel = 'noopener';
-    jwLink.className = 'card-link-item';
-    jwLink.textContent = 'JustWatch ↗';
-    extLinks.appendChild(jwLink);
-
-    body.appendChild(extLinks);
-    card.appendChild(body);
-    fragment.appendChild(card);
+    fragment.appendChild(createMovieCard(movie));
   });
-
   DOM.moviesGrid.appendChild(fragment);
+}
+
+// -------------------------------------------------------------
+// RANDOM MOVIES PICKER
+// -------------------------------------------------------------
+
+function handleOpenRandomModal() {
+  if (!state.currentFilteredMovies || state.currentFilteredMovies.length === 0) {
+    showToast("Nessun film trovato con i filtri attuali!", "warning");
+    return;
+  }
+  rollRandomMovies();
+  openModal(DOM.modalRandom);
+}
+
+function rollRandomMovies() {
+  const movies = state.currentFilteredMovies;
+  if (!movies || movies.length === 0) return;
+
+  // Subtitle showing context
+  let contextLabel = "";
+  if (state.selectedPlatform) {
+    contextLabel = `disponibili su ${state.selectedPlatform}`;
+  } else if (state.filterMode === 'available') {
+    contextLabel = `disponibili subito nei tuoi abbonamenti o gratis`;
+  } else if (state.filterMode === 'free') {
+    contextLabel = `disponibili gratis`;
+  } else if (state.filterMode === 'not_available') {
+    contextLabel = `non disponibili in streaming`;
+  } else {
+    contextLabel = `della tua watchlist`;
+  }
+  if (state.genre && state.genre !== 'all') {
+    contextLabel += ` • Genere: ${state.genre}`;
+  }
+  if (state.search) {
+    contextLabel += ` • Ricerca: "${state.search}"`;
+  }
+
+  const countToPick = Math.min(3, movies.length);
+  DOM.randomSubtitle.textContent = `${countToPick} film estratti casualmente tra i ${movies.length} film ${contextLabel}`;
+
+  // Pick random non-repeating items
+  const shuffled = [...movies].sort(() => 0.5 - Math.random());
+  const selected = shuffled.slice(0, countToPick);
+
+  DOM.randomMoviesGrid.innerHTML = '';
+  selected.forEach(m => {
+    DOM.randomMoviesGrid.appendChild(createMovieCard(m));
+  });
 }
 
 function createPosterFallback(title) {

@@ -968,6 +968,36 @@ body {
   line-height: 1.5;
 }
 
+/* MODAL RANDOM PICKER */
+.modal-random-card {
+  max-width: 980px;
+  width: 95%;
+}
+
+.modal-subtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.random-modal-body {
+  padding: 20px;
+  max-height: 75vh;
+  overflow-y: auto;
+}
+
+.random-movies-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.random-modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 /* Platform Checkbox Groups */
 .platforms-quick-actions {
   display: flex;
